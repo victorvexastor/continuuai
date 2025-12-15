@@ -4,22 +4,41 @@
 
 A privacy-respecting, evidence-anchored AI system that tracks decisions, maintains continuity, and ensures every answer traces to verifiable sources.
 
-## Quick Start
+## 🚀 Quick Start
+
+### One-Command Install
+
+```bash
+bash install.sh
+```
+
+This will:
+- ✅ Check system requirements
+- ✅ Generate secure passwords
+- ✅ Build and start all services
+- ✅ Verify deployment
+- ✅ Open browser to user app
+
+**Complete deployment guide**: [DEPLOYMENT.md](DEPLOYMENT.md)
 
 ### Prerequisites
 
-- Docker & Docker Compose
-- 4GB+ RAM available
-- Ports 8080-8082 and 5432 available
+- Docker 24.0+ & Docker Compose v2
+- 4GB+ RAM (8GB recommended)
+- 5GB+ disk space
+- Linux (Ubuntu 20.04+) or macOS (12+)
 
-### Run Locally
+### Manual Install
 
 ```bash
-# Start all services
-docker compose up --build
+# 1. Setup environment
+make setup
 
-# Wait for services to start (about 2-3 minutes)
-# You'll see "migrations complete" and "seed complete" in the logs
+# 2. Deploy
+make deploy
+
+# 3. Verify
+make verify
 ```
 
 ### Test the System
@@ -139,6 +158,20 @@ All changes flow through `event_log`:
 - Append-only (immutable history)
 - Idempotency keys prevent duplicates
 - `processed_at` tracks graph derivation
+
+## 🔧 Common Commands
+
+```bash
+make help       # Show all commands
+make logs       # View logs
+make status     # Check containers
+make verify     # Health checks
+make test       # Run tests
+make stop       # Stop services
+make restart    # Restart services
+```
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for full command reference.
 
 ## Development
 

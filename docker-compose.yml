@@ -2,11 +2,12 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     environment:
-      POSTGRES_DB: continuuai
-      POSTGRES_USER: continuuai
-      POSTGRES_PASSWORD: continuuai
+      POSTGRES_DB: ${POSTGRES_DB:-continuuai}
+      POSTGRES_USER: ${POSTGRES_USER:-continuuai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-continuuai}
     ports:
-      - "5433:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
+    restart: ${RESTART_POLICY:-unless-stopped}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -20,7 +21,8 @@ services:
       context: .
       dockerfile: services/migrate/Dockerfile
     environment:
-      DATABASE_URL: postgres://continuuai:continuuai@postgres:5432/continuuai
+      DATABASE_URL: ${DATABASE_URL:-postgres://continuuai:continuuai@postgres:5432/continuuai}
+    restart: on-failure
     depends_on:
       postgres:
         condition: service_healthy
@@ -33,9 +35,10 @@ services:
       context: .
       dockerfile: services/seed/Dockerfile
     environment:
-      DATABASE_URL: postgres://continuuai:continuuai@postgres:5432/continuuai
-      ORG_ID: "00000000-0000-0000-0000-000000000000"
-      ORG_SLUG: "example"
+      DATABASE_URL: ${DATABASE_URL:-postgres://continuuai:continuuai@postgres:5432/continuuai}
+      ORG_ID: ${ORG_ID:-00000000-0000-0000-0000-000000000000}
+      ORG_SLUG: ${ORG_SLUG:-example}
+    restart: on-failure
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -45,9 +48,11 @@ services:
       context: .
       dockerfile: services/retrieval/Dockerfile
     environment:
-      DATABASE_URL: postgres://continuuai:continuuai@postgres:5432/continuuai
-      ORG_ID: "00000000-0000-0000-0000-000000000000"
-      EMBEDDING_URL: "http://embedding:8080"
+      DATABASE_URL: ${DATABASE_URL:-postgres://continuuai:continuuai@postgres:5432/continuuai}
+      ORG_ID: ${ORG_ID:-00000000-0000-0000-0000-000000000000}
+      EMBEDDING_URL: ${EMBEDDING_URL:-http://embedding:8080}
+      ADMIN_DEBUG_TOKEN: ${ADMIN_DEBUG_TOKEN:-debug_token}
+      ENV: ${ENV:-production}
       # Retrieval knobs (use .env defaults if present)
       SEED_K: ${SEED_K:-40}
       HOP_DEPTH: ${HOP_DEPTH:-2}
@@ -69,6 +74,7 @@ services:
         condition: service_completed_successfully
     ports:
       - "8081:8080"
+    restart: ${RESTART_POLICY:-unless-stopped}
 
   inference:
     build:
@@ -76,20 +82,27 @@ services:
       dockerfile: services/inference/Dockerfile
     environment:
       RESPONSE_SCHEMA_PATH: /app/schemas/response-contract.v1.json
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://ollama:11434}
+      LLM_MODEL: ${LLM_MODEL:-mistral:7b}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.3}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-1024}
     volumes:
       - ./schemas:/app/schemas:ro
     ports:
       - "8082:8080"
+    restart: ${RESTART_POLICY:-unless-stopped}
 
   api:
     build:
       context: .
       dockerfile: services/api-gateway/Dockerfile
     environment:
-      DATABASE_URL: postgres://continuuai:continuuai@postgres:5432/continuuai
-      RETRIEVAL_URL: http://retrieval:8080
-      INFERENCE_URL: http://inference:8080
+      DATABASE_URL: ${DATABASE_URL:-postgres://continuuai:continuuai@postgres:5432/continuuai}
+      RETRIEVAL_URL: ${RETRIEVAL_SERVICE_URL:-http://retrieval:8080}
+      INFERENCE_URL: ${INFERENCE_URL:-http://inference:8080}
       RESPONSE_SCHEMA_PATH: /app/schemas/response-contract.v1.json
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-admin_secret}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
     volumes:
       - ./schemas:/app/schemas:ro
     depends_on:
@@ -100,7 +113,8 @@ services:
       inference:
         condition: service_started
     ports:
-      - "8080:8080"
+      - "${API_PORT:-8080}:8080"
+    restart: ${RESTART_POLICY:-unless-stopped}
 
   graph-deriver:
     build:
@@ -109,10 +123,11 @@ services:
     environment:
       DB_HOST: postgres
       DB_PORT: "5432"
-      DB_NAME: continuuai
-      DB_USER: continuuai
-      DB_PASS: continuuai
-      POLL_INTERVAL_SEC: "10"
+      DB_NAME: ${POSTGRES_DB:-continuuai}
+      DB_USER: ${POSTGRES_USER:-continuuai}
+      DB_PASS: ${POSTGRES_PASSWORD:-continuuai}
+      POLL_INTERVAL_SEC: ${POLL_INTERVAL_SEC:-10}
+    restart: ${RESTART_POLICY:-unless-stopped}
     depends_on:
       postgres:
         condition: service_healthy
@@ -126,9 +141,9 @@ services:
       context: .
       dockerfile: services/embedding/Dockerfile
     environment:
-      DATABASE_URL: postgres://continuuai:continuuai@postgres:5432/continuuai
-      EMBEDDING_MODEL: "sentence-transformers/all-MiniLM-L6-v2"
-      EMBEDDING_VERSION: "v1"
+      DATABASE_URL: ${DATABASE_URL:-postgres://continuuai:continuuai@postgres:5432/continuuai}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      EMBEDDING_VERSION: ${EMBEDDING_VERSION:-v1}
     depends_on:
       postgres:
         condition: service_healthy
@@ -136,6 +151,58 @@ services:
         condition: service_completed_successfully
     ports:
       - "8083:8080"
+    restart: ${RESTART_POLICY:-unless-stopped}
+
+  # ============================================================
+  # Frontend Services (Phase 2-4)
+  # Uncomment when building admin-dashboard and user-app
+  # ============================================================
+
+  # admin-dashboard:
+  #   build:
+  #     context: services/admin-dashboard
+  #     dockerfile: Dockerfile
+  #   environment:
+  #     NEXT_PUBLIC_API_URL: http://localhost:${API_PORT:-8080}
+  #     ADMIN_TOKEN: ${ADMIN_TOKEN:-admin_secret}
+  #   ports:
+  #     - "${ADMIN_DASHBOARD_PORT:-3001}:3000"
+  #   depends_on:
+  #     - api
+  #   restart: ${RESTART_POLICY:-unless-stopped}
+
+  # user-app:
+  #   build:
+  #     context: services/user-app
+  #     dockerfile: Dockerfile
+  #   environment:
+  #     NEXT_PUBLIC_API_URL: http://localhost:${API_PORT:-8080}
+  #   ports:
+  #     - "${USER_APP_PORT:-3000}:3000"
+  #   depends_on:
+  #     - api
+  #   restart: ${RESTART_POLICY:-unless-stopped}
+
+  # ============================================================
+  # Ollama LLM Service (Phase 5 - requires GPU hardware)
+  # Uncomment when GPU hardware arrives
+  # ============================================================
+
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama_models:/root/.ollama
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu]
+  #   restart: ${RESTART_POLICY:-unless-stopped}
 
 volumes:
   pgdata: {}
+  # ollama_models: {}  # Uncomment with ollama service

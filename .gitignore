@@ -16,3 +16,25 @@ venv/
 .idea/
 .vscode/
 *.iml
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.bak
+
+# Deployment artifacts
+backups/
+*.sql
+
+# Docker volumes
+pgdata/
+ollama_models/
+
+# Node/Frontend (for Phase 2-4)
+node_modules/
+.next/
+dist/
+build/
+.expo/
+.turbo/
