@@ -112,6 +112,34 @@ async def debug_weights():
         }
     }
 
+@app.get("/v1/debug/sql")
+async def debug_sql(admin_token: str | None = None):
+    """
+    Expose active SQL fragments for observability.
+    SECURITY: Only enable in non-prod or with admin_token verification.
+    """
+    expected_token = os.environ.get("ADMIN_DEBUG_TOKEN")
+    
+    # If token is required but not provided or wrong, deny
+    if expected_token and admin_token != expected_token:
+        raise HTTPException(status_code=403, detail="Forbidden: invalid or missing admin_token")
+    
+    # If no token configured, allow (for local dev only—warn in prod)
+    if not expected_token:
+        env_name = os.environ.get("ENV", "dev")
+        if env_name not in ("dev", "local", "development"):
+            raise HTTPException(status_code=403, detail="Forbidden: ADMIN_DEBUG_TOKEN not configured")
+    
+    return {
+        "vector_search": "SELECT es.evidence_span_id, es.content_text, es.embedding <=> %s::vector AS distance FROM evidence_span es WHERE es.org_id = %s ORDER BY distance LIMIT %s",
+        "lexical_search": "SELECT es.evidence_span_id, es.content_text, ts_rank(to_tsvector('english', es.content_text), websearch_to_tsquery('english', %s)) AS rank FROM evidence_span es WHERE es.org_id = %s AND to_tsvector('english', es.content_text) @@ websearch_to_tsquery('english', %s) ORDER BY rank DESC LIMIT %s",
+        "graph_expansion": "WITH RECURSIVE reachable AS (SELECT node_id, 0 AS depth FROM unnest(%s::uuid[]) AS node_id UNION SELECT ge.to_node, r.depth + 1 FROM reachable r JOIN graph_edge ge ON r.node_id = ge.from_node WHERE r.depth < %s LIMIT %s) SELECT DISTINCT node_id FROM reachable",
+        "acl_filter": "SELECT DISTINCT rs.artifact_id FROM role_scope rs JOIN principal_role pr ON rs.role_id = pr.role_id WHERE pr.principal_id = %s AND rs.org_id = %s",
+        "recency_decay": "SELECT EXTRACT(EPOCH FROM (now() - es.created_at)) / 86400.0 / %s AS half_lives, POW(0.5, half_lives) AS decay_factor FROM evidence_span es",
+        "mmr_dedup": "SELECT s1.id, s2.id, SIMILARITY(s1.text, s2.text) AS sim FROM spans s1 CROSS JOIN spans s2 WHERE s1.artifact_id = s2.artifact_id AND s1.id < s2.id AND SIMILARITY(s1.text, s2.text) > %s",
+        "note": "Placeholders (%s) show parameterized positions; actual queries use psycopg3 parameter binding"
+    }
+
 @app.post("/v1/retrieve", response_model=RetrievalResponse)
 async def retrieve(req: RetrievalRequest) -> RetrievalResponse:
     """

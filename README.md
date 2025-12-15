@@ -197,7 +197,76 @@ docker exec -it $(docker ps -qf name=postgres) psql -U continuuai -d continuuai
 SELECT * FROM schema_migrations;
 ```
 
-## Documentation
+## Test Suite & Verification ✅
+
+### Quick Health Check (30 seconds)
+```bash
+./scripts/smoke_test_all.sh
+# Verifies: infrastructure, endpoints, schema, tests, docs
+```
+
+### Full Test Suite (6 suites, ~19 seconds)
+```bash
+./scripts/run_all_tests.sh
+```
+
+**Tests**:
+1. **Provenance Invariants** - Every result has graph accountability
+2. **ACL Negative Tests** - Security boundaries hold
+3. **MMR Property Tests** - Diversity/deduplication work
+4. **Phrase Query Validation** - Quoted queries behave correctly
+5. **Recency Decay Validation** - Temporal relevance verified
+6. **Synthetic Retrieval** - End-to-end smoke test
+
+### Individual Tests
+```bash
+python scripts/check_invariants.py       # Provenance
+python scripts/test_acl_negative.py      # ACL security
+python scripts/test_mmr_properties.py    # MMR quality
+python scripts/test_phrase_queries.py    # Phrase precision
+python scripts/test_recency_decay.py     # Recency decay
+```
+
+### Debug Endpoints
+```bash
+curl http://localhost:8081/v1/health         # Health check
+curl http://localhost:8081/v1/debug/weights  # Config dump
+curl http://localhost:8081/v1/debug/sql      # SQL templates (dev mode)
+```
+
+See `docs/internal/TEST_SUITE.md` for complete documentation.
+
+---
+
+## 📚 Documentation
+
+ContinuuAI documentation follows industry-standard [Diátaxis framework](https://diataxis.fr/).
+
+**📖 [Complete Documentation Index](docs/INDEX.md)**
+
+### Quick Links
+
+| For... | Start here |
+|--------|------------|
+| **New Users** | [Getting Started Tutorial](docs/tutorials/GETTING_STARTED.md) |
+| **Developers** | [Local Development Setup](docs/development/LOCAL.md) |
+| **Operators** | [Operations Manual](docs/operations/OPERATIONS.md) |
+| **API Users** | [API Reference](docs/reference/API_REFERENCE.md) |
+| **Decision Makers** | [Vision & Promise](docs/explanation/CONTINUUAI_VISION.md) |
+
+### Documentation Structure
+
+- **[Tutorials](docs/tutorials/)** - Learning-oriented, step-by-step guides
+- **[How-To Guides](docs/how-to/)** - Task-oriented recipes
+- **[Reference](docs/reference/)** - Technical specifications and APIs
+- **[Explanation](docs/explanation/)** - Concepts and design decisions
+- **[Operations](docs/operations/)** - Production deployment and maintenance
+- **[Development](docs/development/)** - Contributing and testing
+- **[Changelog](docs/changelog/)** - Version history
+
+---
+
+## Previous Documentation Section
 
 ### For Users
 

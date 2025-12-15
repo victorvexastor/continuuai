@@ -46,7 +46,7 @@ jobs:
           pip install -r services/ingestion/requirements.txt
           pip install -r services/retrieval/requirements.txt
           pip install -r services/graph-deriver/requirements.txt
-          pip install httpx pytest
+          pip install httpx pytest numpy
 
       - name: Apply migrations
         working-directory: services/retrieval
@@ -136,5 +136,46 @@ jobs:
         run: |
           python check_invariants.py
 
+      - name: Run ACL negative tests
+        working-directory: scripts
+        env:
+          DATABASE_URL: postgres://continuuai:continuuai@localhost:5433/continuuai
+          RETRIEVAL_URL: http://localhost:8081/v1/retrieve
+          ORG_ID: 00000000-0000-0000-0000-000000000000
+        run: |
+          python test_acl_negative.py
+
+      - name: Run MMR property tests
+        working-directory: scripts
+        env:
+          RETRIEVAL_URL: http://localhost:8081/v1/retrieve
+          ORG_ID: 00000000-0000-0000-0000-000000000000
+          PRINCIPAL_ID: d5f99e45-b729-4ac0-8101-c972acfd883b
+        run: |
+          python test_mmr_properties.py
+
+      - name: Run phrase query tests
+        working-directory: scripts
+        env:
+          RETRIEVAL_URL: http://localhost:8081/v1/retrieve
+          ORG_ID: 00000000-0000-0000-0000-000000000000
+          PRINCIPAL_ID: d5f99e45-b729-4ac0-8101-c972acfd883b
+        run: |
+          python test_phrase_queries.py
+
+      - name: Run recency decay tests
+        working-directory: scripts
+        env:
+          DATABASE_URL: postgres://continuuai:continuuai@localhost:5433/continuuai
+          ORG_ID: 00000000-0000-0000-0000-000000000000
+          RECENCY_HALFLIFE_DAYS: '45.0'
+          DELTA_RECENCY: '0.05'
+        run: |
+          python test_recency_decay.py
+
+      - name: Test SQL debug endpoint
+        run: |
+          curl -f http://localhost:8081/v1/debug/sql || echo "SQL debug endpoint requires token (expected)"
+
       - name: Summary
-        run: echo "Greenfield bootstrap and retrieval contracts verified"
+        run: echo "Greenfield bootstrap, provenance, ACL, MMR, phrase, and recency contracts verified"

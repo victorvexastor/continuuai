@@ -1,6 +1,7 @@
 # ContinuuAI - Project Status
 
-**Status**: ✅ **FULLY OPERATIONAL**
+**Status**: ✅ **FULLY OPERATIONAL + TEST SUITE COMPLETE**  
+**Last Updated**: 2025-12-15
 
 ## What's Running
 
@@ -34,6 +35,15 @@ All services are healthy and tested.
 - ✅ JSON Schema for response validation (Draft 2020-12)
 - ✅ Contract enforced at inference + gateway boundaries
 - ✅ Evidence-anchored responses (every answer cites sources)
+
+### Test Suite & Integrity Layer (✅ NEW)
+- ✅ **Greenfield CI** - Fresh bootstrap reproducibility tests
+- ✅ **Provenance Invariants** - Graph accountability enforcement
+- ✅ **ACL Negative Tests** - Zero-trust security boundary validation
+- ✅ **MMR Property Tests** - Diversity/deduplication quality checks
+- ✅ **Migration Hash Verification** - Drift detection
+- ✅ **Health & Debug Endpoints** - Operational observability
+- ✅ **Master Test Runner** - `scripts/run_all_tests.sh`
 
 ### Documentation
 - ✅ **README.md** - Quick start guide with architecture diagrams
@@ -78,8 +88,9 @@ Automatically processes events and creates:
 - **Edges** (evidenced_by, relates, supports, contradicts)
 - **Edge Evidence** (links edges → spans → events for full accountability)
 
-## Run the Test Suite
+## Run the Test Suites
 
+### Legacy API Tests
 ```bash
 ./test_api.sh
 ```
@@ -90,6 +101,19 @@ This will:
 3. Test /v1/ingest
 4. Verify graph derivation
 5. Show node/edge counts
+
+### New Integrity Test Suite ✅
+```bash
+./scripts/run_all_tests.sh
+```
+
+This runs all integrity, security, and quality tests:
+1. **Provenance Invariants** - Every result has graph accountability
+2. **ACL Negative Tests** - Access control boundaries hold
+3. **MMR Property Tests** - Diversity/deduplication work as claimed
+4. **Synthetic Retrieval** - End-to-end smoke test
+
+See `docs/internal/TEST_SUITE.md` for detailed documentation.
 
 ## Quick Commands
 
