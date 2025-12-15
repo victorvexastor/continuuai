@@ -68,6 +68,25 @@ check_docker() {
 }
 
 check_ports() {
+  log "Checking for existing ContinuuAI services..."
+  
+  # Check if docker compose services are already running
+  if docker compose ps 2>/dev/null | grep -q "continuuai"; then
+    warn "ContinuuAI services are already running"
+    echo "   Services detected: $(docker compose ps --format '{{.Service}}' | tr '\n' ', ' | sed 's/,$//')"
+    read -p "Stop existing services and redeploy? [y/N] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+      log "Stopping existing services..."
+      docker compose down
+      success "Services stopped"
+    else
+      log "Updating/restarting existing services..."
+      return 0
+    fi
+  fi
+  
+  # Check for non-ContinuuAI port conflicts
   log "Checking for port conflicts..."
   PORTS=(3000 3001 8080 5433)
   CONFLICTS=0
@@ -75,24 +94,25 @@ check_ports() {
   for PORT in "${PORTS[@]}"; do
     if [[ "$OS" == "macos" ]]; then
       if lsof -Pi :$PORT -sTCP:LISTEN -t &> /dev/null; then
-        warn "Port $PORT is in use"
+        warn "Port $PORT is in use by another process"
         CONFLICTS=$((CONFLICTS + 1))
       fi
     else
-      if ss -tuln | grep -q ":$PORT "; then
-        warn "Port $PORT is in use"
+      if ss -tuln | grep -q ":$PORT " && ! docker compose ps 2>/dev/null | grep -q "$PORT"; then
+        warn "Port $PORT is in use by another process"
         CONFLICTS=$((CONFLICTS + 1))
       fi
     fi
   done
   
   if [ $CONFLICTS -gt 0 ]; then
-    warn "$CONFLICTS port(s) in use. Services may fail to start."
+    warn "$CONFLICTS port(s) in use by other processes."
     echo "   Required ports: 3000 (user app), 3001 (admin), 8080 (API), 5433 (database)"
+    echo "   Tip: Stop conflicting services or edit .env to use different ports"
     read -p "Continue anyway? [y/N] " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-      error "Installation cancelled"
+      error "Installation cancelled. Edit .env to use different ports or stop conflicting services."
     fi
   else
     success "All required ports are available"
@@ -119,40 +139,58 @@ setup_env() {
   log "Setting up environment configuration..."
   
   if [ -f .env ]; then
-    warn ".env file already exists"
-    read -p "Overwrite with defaults? [y/N] " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-      mv .env .env.backup.$(date +%s)
-      warn "Backed up existing .env to .env.backup.*"
-      cp .env.example .env
-      success "Created new .env file"
-    else
-      log "Using existing .env file"
+    log "Using existing .env file"
+    # Check if passwords are still defaults
+    if grep -q "continuuai_secure_password_change_me" .env 2>/dev/null; then
+      warn "Default passwords detected in .env"
+      read -p "Generate secure passwords? [Y/n] " -n 1 -r
+      echo
+      if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        if command -v openssl &> /dev/null; then
+          log "Generating secure passwords..."
+          # Generate passwords without special chars that break sed
+          DB_PASS=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
+          ADMIN_TOKEN=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
+          DEBUG_TOKEN=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
+          JWT_SECRET=$(openssl rand -base64 64 | tr -d '/+=' | head -c 64)
+          
+          # Use temporary file to avoid sed issues
+          cp .env .env.tmp
+          sed "s|continuuai_secure_password_change_me|${DB_PASS}|g" .env.tmp | \
+          sed "s|admin_secret_token_change_me|${ADMIN_TOKEN}|g" | \
+          sed "s|debug_token_change_me|${DEBUG_TOKEN}|g" | \
+          sed "s|your_jwt_secret_change_me|${JWT_SECRET}|g" > .env.new
+          mv .env.new .env
+          rm -f .env.tmp
+          
+          success "Generated secure credentials"
+        fi
+      fi
     fi
   else
     cp .env.example .env
     success "Created .env file from template"
-  fi
-  
-  # Generate secure passwords
-  if command -v openssl &> /dev/null; then
-    log "Generating secure passwords..."
-    DB_PASS=$(openssl rand -base64 32)
-    ADMIN_TOKEN=$(openssl rand -base64 32)
-    DEBUG_TOKEN=$(openssl rand -base64 32)
-    JWT_SECRET=$(openssl rand -base64 64)
     
-    # Update .env with secure values
-    sed -i.bak "s|continuuai_secure_password_change_me|$DB_PASS|g" .env
-    sed -i.bak "s|admin_secret_token_change_me|$ADMIN_TOKEN|g" .env
-    sed -i.bak "s|debug_token_change_me|$DEBUG_TOKEN|g" .env
-    sed -i.bak "s|your_jwt_secret_change_me|$JWT_SECRET|g" .env
-    rm -f .env.bak
-    
-    success "Generated secure credentials"
-  else
-    warn "OpenSSL not found - using default passwords (INSECURE for production!)"
+    # Generate secure passwords for new installs
+    if command -v openssl &> /dev/null; then
+      log "Generating secure passwords..."
+      DB_PASS=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
+      ADMIN_TOKEN=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
+      DEBUG_TOKEN=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
+      JWT_SECRET=$(openssl rand -base64 64 | tr -d '/+=' | head -c 64)
+      
+      cp .env .env.tmp
+      sed "s|continuuai_secure_password_change_me|${DB_PASS}|g" .env.tmp | \
+      sed "s|admin_secret_token_change_me|${ADMIN_TOKEN}|g" | \
+      sed "s|debug_token_change_me|${DEBUG_TOKEN}|g" | \
+      sed "s|your_jwt_secret_change_me|${JWT_SECRET}|g" > .env.new
+      mv .env.new .env
+      rm -f .env.tmp
+      
+      success "Generated secure credentials"
+    else
+      warn "OpenSSL not found - using default passwords (INSECURE for production!)"
+    fi
   fi
 }
 
@@ -170,26 +208,38 @@ build_services() {
 
 start_services() {
   log "Starting ContinuuAI stack..."
-  docker compose up -d || error "Failed to start services"
+  
+  # Build and start services
+  log "Building containers (this may take a few minutes on first run)..."
+  docker compose up -d --build || error "Failed to start services"
   
   log "Waiting for services to become healthy..."
-  TIMEOUT=120
+  TIMEOUT=180  # Increased for frontend builds
   ELAPSED=0
   
   while [ $ELAPSED -lt $TIMEOUT ]; do
-    if docker compose ps | grep -q "unhealthy"; then
-      sleep 2
-      ELAPSED=$((ELAPSED + 2))
-    else
+    # Count running services
+    RUNNING=$(docker compose ps --format '{{.State}}' | grep -c "running" || echo "0")
+    TOTAL=$(docker compose ps --format '{{.State}}' | wc -l)
+    
+    if [ "$RUNNING" -ge 8 ]; then
       break
     fi
+    
+    if [ $((ELAPSED % 10)) -eq 0 ]; then
+      echo "   $RUNNING/$TOTAL services running..."
+    fi
+    
+    sleep 2
+    ELAPSED=$((ELAPSED + 2))
   done
   
   if [ $ELAPSED -ge $TIMEOUT ]; then
     warn "Services taking longer than expected to start"
+    warn "Check logs: make logs"
+  else
+    success "All services started"
   fi
-  
-  success "Services started"
 }
 
 verify_deployment() {
