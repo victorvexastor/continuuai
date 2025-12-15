@@ -1,0 +1,141 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: continuuai
+      POSTGRES_USER: continuuai
+      POSTGRES_PASSWORD: continuuai
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U continuuai -d continuuai"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  migrate:
+    build:
+      context: .
+      dockerfile: services/migrate/Dockerfile
+    environment:
+      DATABASE_URL: postgres://continuuai:continuuai@postgres:5432/continuuai
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./migrations:/app/migrations:ro
+    command: ["--migrations", "/app/migrations"]
+
+  seed:
+    build:
+      context: .
+      dockerfile: services/seed/Dockerfile
+    environment:
+      DATABASE_URL: postgres://continuuai:continuuai@postgres:5432/continuuai
+      ORG_ID: "00000000-0000-0000-0000-000000000000"
+      ORG_SLUG: "example"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  retrieval:
+    build:
+      context: .
+      dockerfile: services/retrieval/Dockerfile
+    environment:
+      DATABASE_URL: postgres://continuuai:continuuai@postgres:5432/continuuai
+      ORG_ID: "00000000-0000-0000-0000-000000000000"
+      EMBEDDING_URL: "http://embedding:8080"
+      # Retrieval knobs (use .env defaults if present)
+      SEED_K: ${SEED_K:-40}
+      HOP_DEPTH: ${HOP_DEPTH:-2}
+      HOP_FANOUT: ${HOP_FANOUT:-80}
+      FINAL_K: ${FINAL_K:-12}
+      ALPHA_VEC: ${ALPHA_VEC:-0.55}
+      BETA_BM25: ${BETA_BM25:-0.25}
+      GAMMA_GRAPH: ${GAMMA_GRAPH:-0.15}
+      DELTA_RECENCY: ${DELTA_RECENCY:-0.05}
+      RECENCY_HALFLIFE_DAYS: ${RECENCY_HALFLIFE_DAYS:-45}
+      USE_MMR: ${USE_MMR:-true}
+      MMR_LAMBDA: ${MMR_LAMBDA:-0.7}
+      MMR_POOL: ${MMR_POOL:-100}
+      GRAPH_BONUS_MAP: ${GRAPH_BONUS_MAP:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+    ports:
+      - "8081:8080"
+
+  inference:
+    build:
+      context: .
+      dockerfile: services/inference/Dockerfile
+    environment:
+      RESPONSE_SCHEMA_PATH: /app/schemas/response-contract.v1.json
+    volumes:
+      - ./schemas:/app/schemas:ro
+    ports:
+      - "8082:8080"
+
+  api:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    environment:
+      DATABASE_URL: postgres://continuuai:continuuai@postgres:5432/continuuai
+      RETRIEVAL_URL: http://retrieval:8080
+      INFERENCE_URL: http://inference:8080
+      RESPONSE_SCHEMA_PATH: /app/schemas/response-contract.v1.json
+    volumes:
+      - ./schemas:/app/schemas:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      retrieval:
+        condition: service_started
+      inference:
+        condition: service_started
+    ports:
+      - "8080:8080"
+
+  graph-deriver:
+    build:
+      context: .
+      dockerfile: services/graph-deriver/Dockerfile
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: continuuai
+      DB_USER: continuuai
+      DB_PASS: continuuai
+      POLL_INTERVAL_SEC: "10"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      seed:
+        condition: service_completed_successfully
+
+  embedding:
+    build:
+      context: .
+      dockerfile: services/embedding/Dockerfile
+    environment:
+      DATABASE_URL: postgres://continuuai:continuuai@postgres:5432/continuuai
+      EMBEDDING_MODEL: "sentence-transformers/all-MiniLM-L6-v2"
+      EMBEDDING_VERSION: "v1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+    ports:
+      - "8083:8080"
+
+volumes:
+  pgdata: {}

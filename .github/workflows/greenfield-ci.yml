@@ -1,0 +1,140 @@
+name: ContinuuAI Greenfield CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  greenfield-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: continuuai
+          POSTGRES_PASSWORD: continuuai
+          POSTGRES_DB: continuuai
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+      
+      qdrant:
+        image: qdrant/qdrant:v1.9.1
+        ports:
+          - 6333:6333
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r services/ingestion/requirements.txt
+          pip install -r services/retrieval/requirements.txt
+          pip install -r services/graph-deriver/requirements.txt
+          pip install httpx pytest
+
+      - name: Apply migrations
+        working-directory: services/retrieval
+        env:
+          DATABASE_URL: postgres://continuuai:continuuai@localhost:5433/continuuai
+        run: |
+          echo "Running migration runner (strict order)"
+          python migrate.py
+
+      - name: Verify migration hashes
+        working-directory: services/retrieval
+        env:
+          DATABASE_URL: postgres://continuuai:continuuai@localhost:5433/continuuai
+        run: |
+          python -c "
+          import psycopg, hashlib, sys
+          conn = psycopg.connect('postgres://continuuai:continuuai@localhost:5433/continuuai')
+          rows = conn.execute('SELECT filename, sha256 FROM schema_migrations ORDER BY filename').fetchall()
+          for fname, recorded in rows:
+              path = 'migrations/' + fname
+              try:
+                  actual = hashlib.sha256(open(path,'rb').read()).hexdigest()
+                  if actual != recorded:
+                      print(f'Drift: {fname}', file=sys.stderr)
+                      sys.exit(2)
+              except FileNotFoundError:
+                  print(f'Missing: {fname}', file=sys.stderr)
+                  sys.exit(2)
+          print('Hashes match (no drift)')
+          "
+
+      - name: Start retrieval service (background)
+        working-directory: services/retrieval
+        env:
+          DATABASE_URL: postgres://continuuai:continuuai@localhost:5433/continuuai
+          QDRANT_URL: http://localhost:6333
+          SEED_K: '60'
+          HOP_DEPTH: '2'
+          MMR_LAMBDA: '0.55'
+          VECTOR_WEIGHT: '0.45'
+          LEXICAL_WEIGHT: '0.25'
+          GRAPH_WEIGHT: '0.25'
+          RECENCY_WEIGHT: '0.05'
+          USE_MMR: 'true'
+          MMR_TOP_BEFORE: '100'
+          MMR_SPAN_DEDUP_THRESHOLD: '0.85'
+          GRAPH_BONUS_MAP: '{"project":1.0,"thread":0.8,"decision":1.2,"tool_call":0.5,"issue":0.9,"trade":1.5,"investment":1.8,"alert":1.3,"snapshot":0.6}'
+        run: |
+          uvicorn retrieval.main:app --host 0.0.0.0 --port 8081 &
+          sleep 5
+
+      - name: Test /health
+        run: |
+          curl -f http://localhost:8081/v1/health || exit 1
+
+      - name: Test /debug/weights
+        run: |
+          curl -f http://localhost:8081/v1/debug/weights | jq .
+
+      - name: Insert synthetic evidence and run graph derivation
+        working-directory: scripts
+        env:
+          DATABASE_URL: postgres://continuuai:continuuai@localhost:5433/continuuai
+          QDRANT_URL: http://localhost:6333
+        run: |
+          python insert_synthetic_evidence.py
+          cd ../services/graph-deriver
+          python main.py
+
+      - name: Run retrieval test
+        working-directory: scripts
+        env:
+          DATABASE_URL: postgres://continuuai:continuuai@localhost:5433/continuuai
+          RETRIEVAL_URL: http://localhost:8081/v1/retrieve
+          ORG_ID: 00000000-0000-0000-0000-000000000000
+          PRINCIPAL_ID: d5f99e45-b729-4ac0-8101-c972acfd883b
+        run: |
+          python test_retrieval_synthetic.py
+
+      - name: Run invariant checks
+        working-directory: scripts
+        env:
+          DATABASE_URL: postgres://continuuai:continuuai@localhost:5433/continuuai
+          RETRIEVAL_URL: http://localhost:8081/v1/retrieve
+          ORG_ID: 00000000-0000-0000-0000-000000000000
+          PRINCIPAL_ID: d5f99e45-b729-4ac0-8101-c972acfd883b
+        run: |
+          python check_invariants.py
+
+      - name: Summary
+        run: echo "Greenfield bootstrap and retrieval contracts verified"
