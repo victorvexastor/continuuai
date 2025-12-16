@@ -28,23 +28,28 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const checkHealth = async () => {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+
+      let apiHealthy = false
+      let retrievalHealthy = false
+
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
-        const apiRes = await fetch(`${apiUrl}/healthz`)
-        const apiHealthy = apiRes.ok
-
-        const retrievalRes = await fetch('http://localhost:8081/v1/health')
-        const retrievalHealthy = retrievalRes.ok
-
-        setHealth({
-          api: apiHealthy,
-          retrieval: retrievalHealthy,
-          postgres: apiHealthy,
-          loading: false,
-        })
+        const apiRes = await fetch(`${apiUrl}/healthz`, { mode: 'cors' })
+        apiHealthy = apiRes.ok
       } catch (err) {
-        setHealth({ postgres: false, api: false, retrieval: false, loading: false })
+        console.error('API health check failed:', err)
       }
+
+      // Retrieval health is inferred from API being healthy
+      // (retrieval runs on internal Docker network, not exposed to browser)
+      retrievalHealthy = apiHealthy
+
+      setHealth({
+        api: apiHealthy,
+        retrieval: retrievalHealthy,
+        postgres: apiHealthy, // If API is up, postgres is up (API depends on it)
+        loading: false,
+      })
     }
 
     checkHealth()
@@ -56,9 +61,18 @@ export default function AdminDashboard() {
     <div className="min-h-screen p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
-          <p className="text-gray-600">ContinuuAI System Management</p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
+            <p className="text-gray-600">ContinuuAI System Management</p>
+          </div>
+          <a
+            href="/dev"
+            className="bg-gradient-brand text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:shadow-glow-lg transition-all hover:scale-105"
+          >
+            <Activity className="w-5 h-5" />
+            Dev Controller
+          </a>
         </div>
 
         {/* System Health Grid */}
@@ -105,7 +119,7 @@ export default function AdminDashboard() {
             </div>
             <div className="ml-3">
               <p className="text-sm text-blue-700">
-                <strong>Phase 1 Complete:</strong> Backend services operational. 
+                <strong>Phase 1 Complete:</strong> Backend services operational.
                 Expand this dashboard with user management, event log viewer, and ACL management as needed.
               </p>
             </div>
@@ -116,12 +130,12 @@ export default function AdminDashboard() {
   )
 }
 
-function HealthCard({ 
-  icon, 
-  title, 
-  healthy, 
-  loading 
-}: { 
+function HealthCard({
+  icon,
+  title,
+  healthy,
+  loading
+}: {
   icon: React.ReactNode
   title: string
   healthy: boolean
