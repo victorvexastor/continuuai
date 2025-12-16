@@ -1,3 +1,205 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+    /* Professional Color Palette - Business/Corporate */
+    --color-bg-primary: 255, 255, 255;
+    --color-bg-secondary: 249, 250, 251;
+    --color-bg-tertiary: 243, 244, 246;
+
+    --color-text-primary: 17, 24, 39;
+    --color-text-secondary: 55, 65, 81;
+    --color-text-tertiary: 107, 114, 128;
+
+    /* Subtle professional accent - muted blue */
+    --color-brand-primary: 59, 130, 246;
+    --color-brand-secondary: 37, 99, 235;
+    --color-brand-accent: 29, 78, 216;
+
+    --color-success: 34, 197, 94;
+    --color-warning: 245, 158, 11;
+    --color-error: 220, 38, 38;
+    --color-info: 59, 130, 246;
+
+    /* Subtle Gradients - Professional */
+    --gradient-brand: linear-gradient(135deg, rgb(59, 130, 246) 0%, rgb(37, 99, 235) 100%);
+    --gradient-bg: linear-gradient(180deg, rgb(255, 255, 255) 0%, rgb(249, 250, 251) 100%);
+
+    /* Subtle Glass Effect */
+    --glass-bg: rgba(255, 255, 255, 0.9);
+    --glass-border: rgba(209, 213, 219, 0.3);
+    --glass-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.08);
+
+    /* Professional Shadows */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    --shadow-glow: 0 0 10px rgba(59, 130, 246, 0.15);
+}
+
+@layer base {
+    html {
+        @apply scroll-smooth;
+    }
+
+    body {
+        @apply font-sans antialiased;
+        background: rgb(var(--color-bg-secondary));
+        color: rgb(var(--color-text-primary));
+        transition: background 0.2s ease, color 0.2s ease;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        @apply font-display;
+    }
+}
+
+@layer utilities {
+
+    /* Professional Glass Effect - Firefox Compatible */
+    .glass {
+        background: var(--glass-bg);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        -moz-backdrop-filter: blur(8px);
+        border: 1px solid var(--glass-border);
+        box-shadow: var(--glass-shadow);
+    }
+
+    .glass-strong {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        -moz-backdrop-filter: blur(12px);
+    }
+
+    /* Subtle Gradient Text */
+    .gradient-text {
+        background: var(--gradient-brand);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    /* Subtle Animated Background */
+    .animated-gradient {
+        background: linear-gradient(180deg,
+                rgb(255, 255, 255),
+                rgb(249, 250, 251),
+                rgb(243, 244, 246));
+    }
+
+    /* Professional Transitions */
+    .transition-smooth {
+        transition: all 0.2s ease;
+    }
+
+    .transition-bounce {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+}
+
+/* Subtle Animation Keyframes */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        opacity: 0;
+        transform: scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.8;
+    }
+}
+
+@keyframes float {
+
+    0%,
+    100% {
+        transform: translateY(0px);
+    }
+
+    50% {
+        transform: translateY(-5px);
+    }
+}
+
+/* Professional Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgb(var(--color-bg-tertiary));
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgb(var(--color-brand-primary));
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--color-brand-secondary));
+}
+
+/* Selection */
+::selection {
+    background: rgba(var(--color-brand-primary), 0.2);
+    color: rgb(var(--color-text-primary));
+}

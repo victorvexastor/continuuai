@@ -67,6 +67,56 @@ check_docker() {
   success "Docker Compose is available"
 }
 
+get_process_on_port() {
+  local port=$1
+  if [[ "$OS" == "macos" ]]; then
+    lsof -Pi :$port -sTCP:LISTEN -t 2>/dev/null | head -1
+  else
+    ss -tulnp 2>/dev/null | grep ":$port " | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | head -1
+  fi
+}
+
+get_process_name() {
+  local pid=$1
+  ps -p $pid -o comm= 2>/dev/null || echo "unknown"
+}
+
+# Ports we're already planning to use (to avoid reassigning to another service's port)
+RESERVED_PORTS=(3000 3001 8080 5433)
+
+is_port_reserved() {
+  local port=$1
+  for p in "${RESERVED_PORTS[@]}"; do
+    [ "$p" == "$port" ] && return 0
+  done
+  return 1
+}
+
+find_free_port() {
+  local start_port=$1
+  local port=$start_port
+  while [ $port -lt $((start_port + 100)) ]; do
+    # Skip if port is reserved for another ContinuuAI service
+    if is_port_reserved $port; then
+      port=$((port + 1))
+      continue
+    fi
+    if [[ "$OS" == "macos" ]]; then
+      if ! lsof -Pi :$port -sTCP:LISTEN -t &> /dev/null; then
+        echo $port
+        return 0
+      fi
+    else
+      if ! ss -tuln | grep -q ":$port "; then
+        echo $port
+        return 0
+      fi
+    fi
+    port=$((port + 1))
+  done
+  echo $start_port
+}
+
 check_ports() {
   log "Checking for existing ContinuuAI services..."
   
@@ -88,32 +138,99 @@ check_ports() {
   
   # Check for non-ContinuuAI port conflicts
   log "Checking for port conflicts..."
+  
+  declare -A PORT_NAMES=(
+    [3000]="USER_APP_PORT"
+    [3001]="ADMIN_DASHBOARD_PORT"
+    [8080]="API_PORT"
+    [5433]="POSTGRES_PORT"
+  )
+  declare -A PORT_DESC=(
+    [3000]="user app"
+    [3001]="admin dashboard"
+    [8080]="API gateway"
+    [5433]="database"
+  )
+  
   PORTS=(3000 3001 8080 5433)
-  CONFLICTS=0
+  CONFLICT_PORTS=()
+  CONFLICT_PIDS=()
+  CONFLICT_NAMES=()
   
   for PORT in "${PORTS[@]}"; do
+    local pid=""
     if [[ "$OS" == "macos" ]]; then
-      if lsof -Pi :$PORT -sTCP:LISTEN -t &> /dev/null; then
-        warn "Port $PORT is in use by another process"
-        CONFLICTS=$((CONFLICTS + 1))
-      fi
+      pid=$(lsof -Pi :$PORT -sTCP:LISTEN -t 2>/dev/null | head -1)
     else
-      if ss -tuln | grep -q ":$PORT " && ! docker compose ps 2>/dev/null | grep -q "$PORT"; then
-        warn "Port $PORT is in use by another process"
-        CONFLICTS=$((CONFLICTS + 1))
+      if ss -tuln | grep -q ":$PORT "; then
+        pid=$(get_process_on_port $PORT)
       fi
+    fi
+    
+    if [ -n "$pid" ]; then
+      local pname=$(get_process_name $pid)
+      warn "Port $PORT (${PORT_DESC[$PORT]}) is in use by $pname (PID: $pid)"
+      CONFLICT_PORTS+=("$PORT")
+      CONFLICT_PIDS+=("$pid")
+      CONFLICT_NAMES+=("$pname")
     fi
   done
   
-  if [ $CONFLICTS -gt 0 ]; then
-    warn "$CONFLICTS port(s) in use by other processes."
-    echo "   Required ports: 3000 (user app), 3001 (admin), 8080 (API), 5433 (database)"
-    echo "   Tip: Stop conflicting services or edit .env to use different ports"
-    read -p "Continue anyway? [y/N] " -n 1 -r
+  if [ ${#CONFLICT_PORTS[@]} -gt 0 ]; then
+    echo ""
+    echo "   Options:"
+    echo "   [1] Kill conflicting processes and use default ports"
+    echo "   [2] Auto-assign alternative ports (will update .env)"
+    echo "   [3] Continue anyway (services may fail to start)"
+    echo "   [4] Cancel installation"
+    echo ""
+    read -p "   Choose option [1-4]: " -n 1 -r
     echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-      error "Installation cancelled. Edit .env to use different ports or stop conflicting services."
-    fi
+    
+    case $REPLY in
+      1)
+        log "Stopping conflicting processes..."
+        for i in "${!CONFLICT_PIDS[@]}"; do
+          local pid=${CONFLICT_PIDS[$i]}
+          local port=${CONFLICT_PORTS[$i]}
+          local pname=${CONFLICT_NAMES[$i]}
+          log "Killing $pname (PID: $pid) on port $port..."
+          kill $pid 2>/dev/null || sudo kill $pid 2>/dev/null || warn "Failed to kill PID $pid"
+        done
+        sleep 2
+        success "Conflicting processes stopped"
+        ;;
+      2)
+        log "Finding alternative ports..."
+        for i in "${!CONFLICT_PORTS[@]}"; do
+          local old_port=${CONFLICT_PORTS[$i]}
+          local new_port=$(find_free_port $old_port)
+          local env_var=${PORT_NAMES[$old_port]}
+          
+          if [ "$new_port" != "$old_port" ]; then
+            log "Reassigning ${PORT_DESC[$old_port]}: $old_port → $new_port"
+            
+            # Update or add to .env
+            if grep -q "^${env_var}=" .env 2>/dev/null; then
+              sed -i.bak "s/^${env_var}=.*/${env_var}=${new_port}/" .env
+            else
+              echo "${env_var}=${new_port}" >> .env
+            fi
+            
+            # Store new port for display later
+            eval "NEW_${env_var}=${new_port}"
+          fi
+        done
+        rm -f .env.bak
+        success "Alternative ports configured in .env"
+        ;;
+      3)
+        warn "Continuing with port conflicts - some services may fail"
+        ;;
+      4|*)
+        error "Installation cancelled."
+        ;;
+    esac
   else
     success "All required ports are available"
   fi
@@ -259,6 +376,18 @@ verify_deployment() {
 }
 
 show_next_steps() {
+  # Read actual ports from .env or use defaults
+  local user_port=$(grep "^USER_APP_PORT=" .env 2>/dev/null | cut -d= -f2 || echo "3000")
+  local admin_port=$(grep "^ADMIN_DASHBOARD_PORT=" .env 2>/dev/null | cut -d= -f2 || echo "3001")
+  local api_port=$(grep "^API_PORT=" .env 2>/dev/null | cut -d= -f2 || echo "8080")
+  local db_port=$(grep "^POSTGRES_PORT=" .env 2>/dev/null | cut -d= -f2 || echo "5433")
+  
+  # Use defaults if empty
+  user_port=${user_port:-3000}
+  admin_port=${admin_port:-3001}
+  api_port=${api_port:-8080}
+  db_port=${db_port:-5433}
+  
   echo ""
   echo "╔═══════════════════════════════════════════════════════╗"
   echo "║                                                       ║"
@@ -267,10 +396,10 @@ show_next_steps() {
   echo "╚═══════════════════════════════════════════════════════╝"
   echo ""
   echo "📍 Access Points:"
-  echo "   • User App:        http://localhost:3000"
-  echo "   • Admin Dashboard: http://localhost:3001"
-  echo "   • API Gateway:     http://localhost:8080"
-  echo "   • Database:        localhost:5433"
+  echo "   • User App:        http://localhost:${user_port}"
+  echo "   • Admin Dashboard: http://localhost:${admin_port}"
+  echo "   • API Gateway:     http://localhost:${api_port}"
+  echo "   • Database:        localhost:${db_port}"
   echo ""
   echo "📊 Useful Commands:"
   echo "   • make logs       - View all logs"
@@ -287,10 +416,10 @@ show_next_steps() {
   # Try to open browser (optional)
   if command -v xdg-open &> /dev/null; then
     log "Opening user app in browser..."
-    xdg-open http://localhost:3000 &> /dev/null || true
+    xdg-open "http://localhost:${user_port}" &> /dev/null || true
   elif command -v open &> /dev/null; then
     log "Opening user app in browser..."
-    open http://localhost:3000 &> /dev/null || true
+    open "http://localhost:${user_port}" &> /dev/null || true
   fi
 }
 

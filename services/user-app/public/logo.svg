@@ -1,0 +1,25 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="logo-gradient" x1="0.5" y1="0" x2="0.5" y2="1">
+            <stop offset="0%" stop-color="#F4C4F3" />
+            <stop offset="50%" stop-color="#E9A8D9" />
+            <stop offset="100%" stop-color="#A8C0FF" />
+        </linearGradient>
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="7" result="coloredBlur" />
+            <feMerge>
+                <feMergeNode in="coloredBlur" />
+                <feMergeNode in="SourceGraphic" />
+            </feMerge>
+        </filter>
+    </defs>
+    <path
+        d="M 65,10 L 30,55 L 50,55 L 35,90 L 70,45 L 50,45 Z"
+        fill="url(#logo-gradient)"
+        stroke="url(#logo-gradient)"
+        stroke-width="5"
+        stroke-linejoin="round"
+        filter="url(#glow)"
+    />
+</svg>
+

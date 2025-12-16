@@ -8,18 +8,27 @@ import psycopg
 
 
 def ensure_schema_migrations(conn: psycopg.Connection) -> None:
-    conn.execute("""
-      CREATE TABLE IF NOT EXISTS schema_migrations (
-        filename text PRIMARY KEY,
-        applied_at timestamptz NOT NULL DEFAULT now(),
-        file_sha256 text
-      );
-    """)
+    with conn.transaction():
+        conn.execute("""
+          CREATE TABLE IF NOT EXISTS schema_migrations (
+            filename text PRIMARY KEY,
+            applied_at timestamptz NOT NULL DEFAULT now(),
+            file_sha256 text
+          );
+        """)
 
 
 def already_applied(conn: psycopg.Connection, filename: str) -> bool:
-    row = conn.execute("SELECT 1 FROM schema_migrations WHERE filename = %s", (filename,)).fetchone()
-    return row is not None
+    # Use a savepoint to handle any transaction state issues
+    try:
+        with conn.transaction():
+            row = conn.execute("SELECT 1 FROM schema_migrations WHERE filename = %s", (filename,)).fetchone()
+            return row is not None
+    except psycopg.errors.InFailedSqlTransaction:
+        conn.rollback()
+        with conn.transaction():
+            row = conn.execute("SELECT 1 FROM schema_migrations WHERE filename = %s", (filename,)).fetchone()
+            return row is not None
 
 def applied_hash(conn: psycopg.Connection, filename: str) -> str | None:
     try:

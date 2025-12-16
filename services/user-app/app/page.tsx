@@ -1,27 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { Search, History, Settings, Sparkles } from 'lucide-react'
-
-type QueryMode = 'recall' | 'reflection' | 'projection'
-
-interface Evidence {
-  evidence_span_id: string
-  artifact_id: string
-  quote: string
-  confidence: number
-}
-
-interface QueryResponse {
-  contract_version: string
-  mode: string
-  answer: string
-  evidence: Evidence[]
-  policy: {
-    status: string
-    notes: string[]
-  }
-}
+import { useState, useEffect } from 'react'
+import { Sparkles } from 'lucide-react'
+import { Header } from '@/components/Header'
+import { QueryForm } from '@/components/QueryForm'
+import { AnswerDisplay } from '@/components/AnswerDisplay'
+import { HistoryList } from '@/components/HistoryList'
+import { QueryMode, QueryResponse, HistoryItem } from '@/lib/types'
+import { submitQuery } from '@/lib/api'
+import { saveQuery, getHistory, deleteHistoryItem } from '@/lib/storage'
 
 export default function UserApp() {
   const [query, setQuery] = useState('')
@@ -29,201 +16,173 @@ export default function UserApp() {
   const [loading, setLoading] = useState(false)
   const [response, setResponse] = useState<QueryResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [history, setHistory] = useState<HistoryItem[]>([])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // Load history and check for reload request
+  useEffect(() => {
+    setHistory(getHistory())
+
+    // Check if we're loading a query from history
+    const reloadData = sessionStorage.getItem('reload_query')
+    if (reloadData) {
+      sessionStorage.removeItem('reload_query')
+      try {
+        const item: HistoryItem = JSON.parse(reloadData)
+        setQuery(item.query)
+        setMode(item.mode)
+        setResponse(item.response)
+      } catch {
+        // Ignore parse errors
+      }
+    }
+  }, [])
+
+  const handleSubmit = async () => {
     if (!query.trim()) return
 
     setLoading(true)
     setError(null)
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
-      const res = await fetch(`${apiUrl}/v1/query`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          org_id: '00000000-0000-0000-0000-000000000000',
-          principal_id: '00000000-0000-0000-0000-000000000001',
-          mode,
-          query_text: query,
-          scopes: []
-        })
-      })
-
-      if (!res.ok) {
-        throw new Error(`API error: ${res.status}`)
-      }
-
-      const data = await res.json()
+      const data = await submitQuery(query, mode)
       setResponse(data)
+
+      // Save to history
+      saveQuery(query, mode, data)
+      setHistory(getHistory())
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Query failed')
+      setResponse(null)
     } finally {
       setLoading(false)
     }
   }
 
+  const handleHistorySelect = (item: HistoryItem) => {
+    setQuery(item.query)
+    setMode(item.mode)
+    setResponse(item.response)
+    setError(null)
+  }
+
+  const handleHistoryDelete = (id: string) => {
+    deleteHistoryItem(id)
+    setHistory(getHistory())
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Sparkles className="w-8 h-8 text-brand-600" />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">ContinuuAI</h1>
-              <p className="text-sm text-gray-600">Organizational Memory</p>
-            </div>
-          </div>
-          <nav className="flex items-center space-x-4">
-            <button className="p-2 hover:bg-gray-100 rounded-lg transition">
-              <History className="w-5 h-5 text-gray-600" />
-            </button>
-            <button className="p-2 hover:bg-gray-100 rounded-lg transition">
-              <Settings className="w-5 h-5 text-gray-600" />
-            </button>
-          </nav>
-        </div>
-      </header>
+    <div className="min-h-screen animated-gradient">
+      <Header />
 
-      {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        {/* Query Form */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <form onSubmit={handleSubmit}>
-            <div className="mb-4">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Query Mode
-              </label>
-              <div className="flex space-x-2">
-                {(['recall', 'reflection', 'projection'] as QueryMode[]).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setMode(m)}
-                    className={`px-4 py-2 rounded-lg font-medium transition ${
-                      mode === m
-                        ? 'bg-brand-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {m.charAt(0).toUpperCase() + m.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
+      <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+          {/* Main Query Area */}
+          <div className="lg:col-span-2 space-y-6 animate-fade-in">
+            <QueryForm
+              query={query}
+              mode={mode}
+              loading={loading}
+              onQueryChange={setQuery}
+              onModeChange={setMode}
+              onSubmit={handleSubmit}
+            />
 
-            <div className="mb-4">
-              <label htmlFor="query" className="block text-sm font-semibold text-gray-700 mb-2">
-                Your Question
-              </label>
-              <textarea
-                id="query"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                rows={4}
-                placeholder="What do you want to know? Ask about decisions, context, or future scenarios..."
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading || !query.trim()}
-              className="w-full bg-brand-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-brand-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition flex items-center justify-center space-x-2"
-            >
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
-                  <span>Searching memory...</span>
-                </>
-              ) : (
-                <>
-                  <Search className="w-5 h-5" />
-                  <span>Search Memory</span>
-                </>
-              )}
-            </button>
-          </form>
-        </div>
-
-        {/* Error Display */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <p className="text-red-800 font-medium">Error: {error}</p>
-          </div>
-        )}
-
-        {/* Response Display */}
-        {response && (
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <div className="mb-4">
-              <span className="inline-block px-3 py-1 bg-brand-100 text-brand-800 rounded-full text-sm font-semibold">
-                {response.mode} mode
-              </span>
-            </div>
-
-            <div className="mb-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-3">Answer</h2>
-              <p className="text-gray-700 leading-relaxed">{response.answer}</p>
-            </div>
-
-            {response.evidence.length > 0 && (
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-3">
-                  Evidence ({response.evidence.length} sources)
-                </h3>
-                <div className="space-y-3">
-                  {response.evidence.map((ev, idx) => (
-                    <div key={idx} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <div className="flex items-start justify-between mb-2">
-                        <span className="text-xs font-semibold text-gray-500">Source {idx + 1}</span>
-                        <span className="text-xs font-semibold text-brand-600">
-                          {Math.round(ev.confidence * 100)}% confidence
-                        </span>
-                      </div>
-                      <blockquote className="text-sm text-gray-700 italic border-l-4 border-brand-400 pl-3">
-                        "{ev.quote}"
-                      </blockquote>
-                    </div>
-                  ))}
+            {/* Error Display */}
+            {error && (
+              <div className="glass rounded-2xl p-6 border-l-4 border-red-500 animate-slide-down">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0">
+                    <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-red-900 dark:text-red-200">Error</h3>
+                    <p className="text-red-800 dark:text-red-300 mt-1">{error}</p>
+                  </div>
                 </div>
               </div>
             )}
 
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <p className="text-xs text-gray-500">
-                Policy: {response.policy.status} • Contract: {response.contract_version}
-              </p>
-            </div>
-          </div>
-        )}
+            {/* Response Display */}
+            {response && <AnswerDisplay response={response} />}
 
-        {/* Empty State */}
-        {!response && !error && !loading && (
-          <div className="bg-white rounded-xl shadow-lg p-12 text-center">
-            <Sparkles className="w-16 h-16 text-brand-400 mx-auto mb-4" />
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">Ask Your Organization</h3>
-            <p className="text-gray-600 mb-6">
-              Query decisions, context, and insights from your organizational memory.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left max-w-2xl mx-auto">
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h4 className="font-semibold text-blue-900 mb-1">Recall</h4>
-                <p className="text-sm text-blue-700">Retrieve past decisions and context</p>
+            {/* Empty State */}
+            {!response && !error && !loading && (
+              <div className="glass rounded-2xl p-12 text-center backdrop-blur-xl animate-scale-in">
+                <div className="inline-block p-4 rounded-full bg-gradient-brand mb-6 animate-float">
+                  <Sparkles className="w-12 h-12 text-white" />
+                </div>
+                <h3 className="text-3xl font-display font-bold mb-3 gradient-text">
+                  Ask Your Organization
+                </h3>
+                <p className="text-lg text-gray-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto">
+                  Query decisions, context, and insights from your organizational memory with evidence-backed answers.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left max-w-3xl mx-auto">
+                  <div className="group p-6 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-800 hover:shadow-glow transition-all duration-300 hover:-translate-y-1">
+                    <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center mb-3">
+                      <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <h4 className="font-display font-bold text-blue-900 dark:text-blue-200 mb-2">Recall</h4>
+                    <p className="text-sm text-blue-700 dark:text-blue-400">Retrieve past decisions and organizational context</p>
+                  </div>
+                  <div className="group p-6 rounded-xl bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 border border-purple-200 dark:border-purple-800 hover:shadow-glow transition-all duration-300 hover:-translate-y-1">
+                    <div className="w-10 h-10 rounded-lg bg-purple-500 flex items-center justify-center mb-3">
+                      <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                    </div>
+                    <h4 className="font-display font-bold text-purple-900 dark:text-purple-200 mb-2">Reflection</h4>
+                    <p className="text-sm text-purple-700 dark:text-purple-400">Analyze patterns and discover insights</p>
+                  </div>
+                  <div className="group p-6 rounded-xl bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border border-green-200 dark:border-green-800 hover:shadow-glow transition-all duration-300 hover:-translate-y-1">
+                    <div className="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center mb-3">
+                      <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                      </svg>
+                    </div>
+                    <h4 className="font-display font-bold text-green-900 dark:text-green-200 mb-2">Projection</h4>
+                    <p className="text-sm text-green-700 dark:text-green-400">Explore future scenarios and possibilities</p>
+                  </div>
+                </div>
               </div>
-              <div className="bg-purple-50 p-4 rounded-lg">
-                <h4 className="font-semibold text-purple-900 mb-1">Reflection</h4>
-                <p className="text-sm text-purple-700">Analyze patterns and insights</p>
-              </div>
-              <div className="bg-green-50 p-4 rounded-lg">
-                <h4 className="font-semibold text-green-900 mb-1">Projection</h4>
-                <p className="text-sm text-green-700">Explore future scenarios</p>
-              </div>
+            )}
+          </div>
+
+          {/* Sidebar - Recent History */}
+          <div className="lg:col-span-1 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+            <div className="glass rounded-2xl p-6 sticky top-24 backdrop-blur-xl">
+              <h3 className="font-display font-bold text-xl mb-4 flex items-center gap-2">
+                <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Recent Queries
+              </h3>
+              <HistoryList
+                items={history.slice(0, 5)}
+                onSelect={handleHistorySelect}
+                onDelete={handleHistoryDelete}
+                compact
+              />
+              {history.length > 5 && (
+                <a
+                  href="/history"
+                  className="block mt-4 text-center text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 transition-colors py-2 px-4 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-950/30"
+                >
+                  View all {history.length} queries →
+                </a>
+              )}
+              {history.length === 0 && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
+                  No queries yet. Start by asking a question above.
+                </p>
+              )}
             </div>
           </div>
-        )}
+        </div>
       </main>
     </div>
   )
