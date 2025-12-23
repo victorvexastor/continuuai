@@ -133,20 +133,39 @@
         <h2>Purpose-built for decision continuity</h2>
       </div>
       <div class="grid three">
-        <div class="card highlight">
+        <div class="card highlight" id="highlight-dashboard">
           <h3>Needs Attention</h3>
-          <p>Revisit due, unresolved dissent, and insights in one view—no digging.</p>
-          <div class="mock-block">Dashboard hero capture goes here.</div>
+          <p class="muted">Live feed of revisit reminders, unresolved dissent, and insights.</p>
+          <div class="mini-list" data-slot="needs-attention"></div>
         </div>
-        <div class="card highlight">
+        <div class="card highlight" id="highlight-decision">
           <h3>Decision detail</h3>
-          <p>Reasoning, constraints, alternatives, dissent, uncertainty, and outcomes all preserved.</p>
-          <div class="mock-block">Decision detail capture goes here.</div>
+          <p class="muted">Reasoning, constraints, dissent, uncertainty, and outcomes—preserved in one place.</p>
+          <div class="decision-preview" data-slot="decision-detail">
+            <div class="preview-header">
+              <span class="dot"></span>
+              <div>
+                <p class="preview-title">Loading decision…</p>
+                <p class="preview-sub muted">Stream • Decided by • Date</p>
+              </div>
+            </div>
+            <div class="preview-body muted">Reasoning will appear here.</div>
+            <div class="preview-tags">
+              <span class="pill tiny">Dissent</span>
+              <span class="pill tiny">Uncertainty</span>
+            </div>
+          </div>
         </div>
-        <div class="card highlight">
+        <div class="card highlight" id="highlight-ask">
           <h3>Ask Julian</h3>
-          <p>Evidence-anchored answers citing the exact spans that back each response.</p>
-          <div class="mock-block">Query panel capture goes here.</div>
+          <p class="muted">Evidence-anchored answers citing the spans that back each response.</p>
+          <div class="ask-preview">
+            <div class="prompt muted">“What did we decide about API versioning?”</div>
+            <div class="answer">
+              <p class="muted">Based on your recorded decisions, backwards compatibility was critical in March, but the October decision did not mention it. Revisit assumption?</p>
+              <div class="evidence muted">[1] Decision: API versioning (Mar 12) • [2] Decision: Pricing v2 (Oct 4)</div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -221,5 +240,99 @@
       <a href="/">Ask Julian</a>
     </div>
   </footer>
+
+  <script>
+    (async function hydrateHighlights() {
+      const fallback = {
+        needs_attention: [
+          { title: 'Decision due for revisit: API versioning', description: 'Was scheduled for 2025-01-15', severity: 'warning' },
+          { title: 'Unresolved dissent: Security concerns on Feature X', description: "Maria Chen: \"We’re deciding for patients, not with them.\"", severity: 'attention' },
+          { title: 'Potential conflict: Pricing v2 vs Enterprise discount', description: 'Detected by pattern analyzer', severity: 'info' }
+        ],
+        recent_decisions: [
+          { id: 'd1', title: 'Ship Feature Y behind flag', decided_at: '2024-12-18', stream: { name: 'Product', color: '#5c7cff' }, decided_by: 'A. Patel' }
+        ]
+      };
+
+      async function fetchJson(url) {
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      }
+
+      function renderNeedsAttention(items) {
+        const slot = document.querySelector('[data-slot="needs-attention"]');
+        if (!slot) return;
+        slot.innerHTML = '';
+        items.slice(0, 4).forEach(item => {
+          const row = document.createElement('div');
+          row.className = 'mini-row';
+          const pill = document.createElement('span');
+          pill.className = `pill tiny ${item.severity || 'info'}`;
+          pill.textContent = (item.severity || 'info').toUpperCase();
+          const text = document.createElement('div');
+          text.innerHTML = `<p class="mini-title">${item.title}</p><p class="mini-sub muted">${item.description || ''}</p>`;
+          row.appendChild(pill);
+          row.appendChild(text);
+          slot.appendChild(row);
+        });
+      }
+
+      function renderDecision(decision) {
+        const wrapper = document.querySelector('[data-slot="decision-detail"]');
+        if (!wrapper) return;
+        wrapper.querySelector('.preview-title').textContent = decision.title || 'Decision';
+        wrapper.querySelector('.preview-sub').textContent = `${decision.stream?.name || 'Stream'} • ${decision.decided_by || 'Author'} • ${decision.decided_at || ''}`;
+        wrapper.querySelector('.preview-body').textContent = decision.reasoning ? decision.reasoning.slice(0, 180) + (decision.reasoning.length > 180 ? '…' : '') : '';
+        const dot = wrapper.querySelector('.dot');
+        if (decision.stream?.color) dot.style.background = decision.stream.color;
+        const tags = wrapper.querySelector('.preview-tags');
+        tags.innerHTML = '';
+        if (decision.dissent && decision.dissent.length) {
+          const tag = document.createElement('span');
+          tag.className = 'pill tiny';
+          tag.textContent = `${decision.dissent.length} dissent`;
+          tags.appendChild(tag);
+        }
+        if (decision.uncertainty && decision.uncertainty.length) {
+          const tag = document.createElement('span');
+          tag.className = 'pill tiny';
+          tag.textContent = `${decision.uncertainty.length} uncertainty`;
+          tags.appendChild(tag);
+        }
+      }
+
+      try {
+        const data = await fetchJson('/api/dashboard');
+        renderNeedsAttention(data.needs_attention || fallback.needs_attention);
+        const first = (data.recent_decisions || [])[0];
+        if (first?.id) {
+          const detail = await fetchJson(`/api/decisions/${first.id}`);
+          renderDecision(detail);
+        } else {
+          renderDecision({
+            title: 'Ship Feature Y behind flag',
+            reasoning: 'We will release behind a feature flag to validate adoption while containing blast radius.',
+            stream: { name: 'Product', color: '#5c7cff' },
+            decided_by: 'A. Patel',
+            decided_at: '2024-12-18',
+            dissent: [],
+            uncertainty: []
+          });
+        }
+      } catch (e) {
+        renderNeedsAttention(fallback.needs_attention);
+        renderDecision({
+          title: 'API versioning policy',
+          reasoning: 'Backward compatibility is critical; default to additive changes and deprecate after 2 releases.',
+          stream: { name: 'Platform', color: '#5c7cff' },
+          decided_by: 'E. Singh',
+          decided_at: '2024-12-15',
+          dissent: [{}, {}],
+          uncertainty: [{}]
+        });
+      }
+    })();
+  </script>
 </body>
 </html>
