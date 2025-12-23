@@ -1,0 +1,172 @@
+# Default values for neuais-colab
+# This is a YAML-formatted file.
+
+# Global settings
+global:
+  domain: colab.neuais.com
+  storageClass: fast-ssd
+  sharedStorageClass: shared-storage
+
+# Frontend configuration
+frontend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: neuais/colab-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "200m"
+
+# Backend configuration
+backend:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: neuais/colab-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 5000
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  env:
+    nodeEnv: production
+    port: 5000
+    gpuCount: 4
+    maxConcurrentSessions: 10
+    sessionTimeoutMinutes: 120
+
+# PostgreSQL configuration
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: 15-alpine
+  replicaCount: 1
+  service:
+    port: 5432
+  persistence:
+    enabled: true
+    size: 50Gi
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+  auth:
+    database: neuais_colab
+    username: neuais
+
+# Redis configuration
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: 7-alpine
+  service:
+    port: 6379
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+# Jupyter session configuration
+jupyter:
+  image:
+    repository: neuais/jupyter
+    tag: latest
+  resources:
+    requests:
+      memory: "8Gi"
+      cpu: "4"
+      gpu: 1
+    limits:
+      memory: "16Gi"
+      cpu: "8"
+      gpu: 1
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/websocket-services: backend-service
+  tls:
+    enabled: true
+    secretName: neuais-colab-tls
+  hosts:
+    - host: colab.neuais.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: frontend
+    - host: api.colab.neuais.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: backend
+
+# Persistent storage
+persistence:
+  workspaces:
+    enabled: true
+    size: 500Gi
+  datasets:
+    enabled: true
+    size: 1Ti
+
+# Security
+rbac:
+  create: true
+
+networkPolicy:
+  enabled: true
+
+podDisruptionBudget:
+  enabled: true
+  backend:
+    minAvailable: 2
+  frontend:
+    minAvailable: 1
+
+# Resource quotas
+resourceQuota:
+  enabled: true
+  hard:
+    requests.cpu: "100"
+    requests.memory: "500Gi"
+    requests.nvidia.com/gpu: "8"
+
+# Secrets (override in production)
+secrets:
+  jwtSecret: "change-this-in-production"
+  postgresPassword: "change-this-in-production"

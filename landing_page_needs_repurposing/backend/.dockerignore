@@ -1,0 +1,9 @@
+# Deployment files
+Dockerfile
+fly.toml
+
+# Workspace (user files)
+workspace/*
+
+# Build artifacts
+target/

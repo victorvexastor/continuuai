@@ -1,0 +1,15 @@
+apiVersion: v2
+name: neuais-colab
+description: A Helm chart for NeuAIs Colab - Collaborative AI Computing Platform
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - ai
+  - gpu
+  - jupyter
+  - collaboration
+  - machine-learning
+maintainers:
+  - name: NeuAIs Team
+    email: admin@neuais.com
