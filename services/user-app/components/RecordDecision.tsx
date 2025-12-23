@@ -3,7 +3,7 @@
 import { useState } from 'react'
 
 interface RecordDecisionProps {
-  onSubmit: (decision: DecisionData) => Promise<void>
+  onSubmit: (decision: DecisionRequest) => Promise<void>
   streams: DecisionStream[]
 }
 
@@ -12,21 +12,72 @@ interface DecisionStream {
   name: string
 }
 
-interface DecisionData {
-  what_was_decided: string
+interface DissentItem {
+  person: string
+  concern: string
   reasoning: string
-  dissent: string
-  uncertainty: string
+}
+
+interface UncertaintyItem {
+  aspect: string
+  description: string
+  impact_if_wrong: string
+  mitigation: string
+}
+
+interface FormData {
+  title: string
+  what_decided: string
+  reasoning: string
+  dissent_text: string // Free-form input that gets parsed
+  uncertainty_text: string // Free-form input that gets parsed
+  stream_id: string
+  revisit_date: string
+}
+
+interface DecisionRequest {
+  title: string
+  what_decided: string
+  reasoning: string
+  constraints: string[]
+  alternatives: { option: string; why_rejected: string }[]
+  dissent: DissentItem[]
+  uncertainty: UncertaintyItem[]
   stream_id: string
   revisit_date?: string
 }
 
+function parseDissentText(text: string): DissentItem[] {
+  if (!text.trim()) return []
+  // Simple parsing: each line becomes one dissent item
+  // Format: "Person - Concern" or just free text
+  return text.split('\n').filter(l => l.trim()).map(line => {
+    const dashMatch = line.match(/^(.+?)\s*-\s*(.+)$/)
+    if (dashMatch) {
+      return { person: dashMatch[1].trim(), concern: dashMatch[2].trim(), reasoning: '' }
+    }
+    return { person: 'Unnamed', concern: line.trim(), reasoning: '' }
+  })
+}
+
+function parseUncertaintyText(text: string): UncertaintyItem[] {
+  if (!text.trim()) return []
+  // Each paragraph or line becomes one uncertainty item
+  return text.split('\n').filter(l => l.trim()).map(line => ({
+    aspect: 'Assumption',
+    description: line.trim(),
+    impact_if_wrong: '',
+    mitigation: ''
+  }))
+}
+
 export function RecordDecision({ onSubmit, streams }: RecordDecisionProps) {
-  const [formData, setFormData] = useState<DecisionData>({
-    what_was_decided: '',
+  const [formData, setFormData] = useState<FormData>({
+    title: '',
+    what_decided: '',
     reasoning: '',
-    dissent: '',
-    uncertainty: '',
+    dissent_text: '',
+    uncertainty_text: '',
     stream_id: streams[0]?.id || '',
     revisit_date: ''
   })
@@ -41,14 +92,28 @@ export function RecordDecision({ onSubmit, streams }: RecordDecisionProps) {
     setSuccess(false)
 
     try {
-      await onSubmit(formData)
+      // Transform form data to API format
+      const decision: DecisionRequest = {
+        title: formData.title || formData.what_decided.slice(0, 80),
+        what_decided: formData.what_decided,
+        reasoning: formData.reasoning,
+        constraints: [],
+        alternatives: [],
+        dissent: parseDissentText(formData.dissent_text),
+        uncertainty: parseUncertaintyText(formData.uncertainty_text),
+        stream_id: formData.stream_id,
+        ...(formData.revisit_date ? { revisit_date: formData.revisit_date } : {})
+      }
+      
+      await onSubmit(decision)
       setSuccess(true)
       // Reset form
       setFormData({
-        what_was_decided: '',
+        title: '',
+        what_decided: '',
         reasoning: '',
-        dissent: '',
-        uncertainty: '',
+        dissent_text: '',
+        uncertainty_text: '',
         stream_id: streams[0]?.id || '',
         revisit_date: ''
       })
@@ -107,14 +172,31 @@ export function RecordDecision({ onSubmit, streams }: RecordDecisionProps) {
           </p>
         </div>
 
+        {/* Title */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            Title (Brief summary)
+          </label>
+          <input
+            type="text"
+            value={formData.title}
+            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+            placeholder="E.g., Adopt GraphQL for new API"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Optional: Auto-generated from decision text if left blank
+          </p>
+        </div>
+
         {/* What was decided */}
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-2">
             What was decided? *
           </label>
           <textarea
-            value={formData.what_was_decided}
-            onChange={(e) => setFormData({ ...formData, what_was_decided: e.target.value })}
+            value={formData.what_decided}
+            onChange={(e) => setFormData({ ...formData, what_decided: e.target.value })}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent resize-none"
             rows={3}
             placeholder="Example: We will use progressive disclosure for patient data access rather than showing all information at once."
@@ -147,11 +229,11 @@ export function RecordDecision({ onSubmit, streams }: RecordDecisionProps) {
             <span>Dissent & Concerns</span>
           </label>
           <textarea
-            value={formData.dissent}
-            onChange={(e) => setFormData({ ...formData, dissent: e.target.value })}
+            value={formData.dissent_text}
+            onChange={(e) => setFormData({ ...formData, dissent_text: e.target.value })}
             className="w-full px-4 py-3 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none bg-amber-50"
             rows={4}
-            placeholder="Example: Security team (Maria Chen) expressed concern about paternalism - felt we were deciding for patients rather than with them. Compliance (Jake Martinez) worried this could create liability if critical information wasn't immediately visible. Both agreed to proceed after pilot but wanted quarterly review."
+            placeholder="Format each concern on a new line: &#10;Maria Chen - Concerned about paternalism&#10;Jake Martinez - Worried about liability if critical info isn't immediately visible"
           />
           <p className="text-xs text-amber-700 mt-1">
             <strong>Critical:</strong> Preserve who disagreed and why. This may prove valuable later.
@@ -164,11 +246,11 @@ export function RecordDecision({ onSubmit, streams }: RecordDecisionProps) {
             Uncertainty & Open Questions
           </label>
           <textarea
-            value={formData.uncertainty}
-            onChange={(e) => setFormData({ ...formData, uncertainty: e.target.value })}
+            value={formData.uncertainty_text}
+            onChange={(e) => setFormData({ ...formData, uncertainty_text: e.target.value })}
             className="w-full px-4 py-3 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none bg-purple-50"
             rows={4}
-            placeholder="Example: We don't know if this will work for patients with chronic conditions who need to track multiple data points daily. Original pilot was mostly acute care patients. Assumption: Behavior is similar. Risk if wrong: Loss of engagement from our most active users."
+            placeholder="List each assumption or unknown on a new line:&#10;Will this work for chronic condition patients?&#10;Pilot was mostly acute care - behavior may differ"
           />
           <p className="text-xs text-purple-700 mt-1">
             What don't you know? What assumptions are you making? What could invalidate this decision?

@@ -5,19 +5,27 @@ Internal reference for developers, DevOps, and system administrators.
 ## Quick Reference
 
 **Services:**
-- API Gateway: `:8080` (external)
-- Retrieval: `:8081` (internal)
-- Inference: `:8082` (internal)
-- PostgreSQL: `:5433` (changed from 5432 to avoid local conflict)
-- Graph Deriver: background worker
+
+| Service | Container | Port | Purpose |
+|---------|-----------|------|--------|
+| API Gateway | `continuuai-api-1` | 8080 | External API |
+| Retrieval | `continuuai-retrieval-1` | 8081 | Evidence retrieval |
+| Inference | `continuuai-inference-1` | 8082 | Response generation |
+| Embedding | `continuuai-embedding-1` | 8083 | Vector embeddings |
+| Graph Deriver | `continuuai-graph-deriver-1` | None | Background worker |
+| PostgreSQL | `continuuai-postgres-1` | 5433 | Database |
+| User App | `continuuai-user-app-1` | 3000 | Frontend |
+| Admin Dashboard | `continuuai-admin-dashboard-1` | 3001 | Admin UI |
 
 **Key Commands:**
 ```bash
 # Start everything
-docker compose up --build -d
+make deploy
+# or: docker compose up --build -d
 
 # Watch logs
-docker compose logs -f api-gateway
+make logs
+# or: docker compose logs -f
 
 # Restart a service
 docker compose restart retrieval
@@ -26,11 +34,15 @@ docker compose restart retrieval
 curl http://localhost:8080/healthz
 
 # Run test suite
-./test_api.sh
+make test
+# or: ./scripts/run_all_tests.sh
 
 # Database shell
-docker exec -it continuuai-postgres-1 psql -U cai cai_db
+make shell-db
+# or: docker compose exec postgres psql -U continuuai -d continuuai
 ```
+
+> **See also:** [Docker Container Access Guide](../how-to/DOCKER_CONTAINER_ACCESS.md) for detailed container interaction.
 
 ---
 
@@ -187,7 +199,9 @@ curl http://localhost:8082/healthz  # Inference
 docker compose logs -f
 
 # Specific service
-docker compose logs -f api-gateway
+docker compose logs -f api
+docker compose logs -f graph-deriver
+docker compose logs -f retrieval
 
 # Last 100 lines
 docker compose logs --tail=100
@@ -195,6 +209,8 @@ docker compose logs --tail=100
 # Search logs
 docker compose logs | grep ERROR
 ```
+
+> **See also:** [Logging & Observability Guide](LOGGING.md) for comprehensive log access and analysis.
 
 ### Database Queries
 
@@ -780,7 +796,20 @@ docker compose down <service>
 
 ## Additional Resources
 
-- **Technical Design**: `docs/internal/TECHNICAL_DESIGN.md`
-- **SQL Schema**: `docs/internal/sql-schema.md`
-- **API Reference**: `docs/external/API_REFERENCE.md`
-- **Vision Document**: `docs/external/CONTINUUAI_VISION.md`
+### Quick Links
+- [Docker Container Access](../how-to/DOCKER_CONTAINER_ACCESS.md) - Access and interact with containers
+- [Logging & Observability](LOGGING.md) - Log access and analysis
+- [Graph Deriver Reference](../reference/GRAPH_DERIVER.md) - Background daemon details
+
+### Technical Documentation
+- [Technical Design](../reference/TECHNICAL_DESIGN.md) - System architecture
+- [SQL Schema Reference](../reference/sql-schema.md) - Database structure
+- [API Reference](../reference/API_REFERENCE.md) - API documentation
+- [Test Suite Reference](../reference/TEST_SUITE.md) - Testing documentation
+
+### Conceptual Documentation
+- [ContinuuAI Vision](../explanation/CONTINUUAI_VISION.md) - Philosophy and goals
+
+### Deployment
+- [Deployment Guide](../../DEPLOYMENT.md) - Installation and setup
+- [.env.example](../../.env.example) - Configuration reference

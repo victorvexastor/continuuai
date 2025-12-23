@@ -43,6 +43,7 @@ This documentation follows the [Diátaxis framework](https://diataxis.fr/) for s
 
 ### Deployment
 - [Deploy to Production](how-to/deploy-production.md) - Production deployment guide
+- [Docker Container Access](how-to/DOCKER_CONTAINER_ACCESS.md) - Access, monitor, and interact with containers
 - [Configure ACL Policies](how-to/configure-acl.md) - Access control setup
 - [Scale for Load](how-to/scale.md) - Horizontal and vertical scaling
 
@@ -77,7 +78,7 @@ This documentation follows the [Diátaxis framework](https://diataxis.fr/) for s
 
 ### Code Reference
 - [Retrieval Service API](reference/retrieval-service.md) - Internal service docs
-- [Graph Deriver Logic](reference/graph-deriver.md) - Graph extraction rules
+- [Graph Deriver Service](reference/GRAPH_DERIVER.md) - Background daemon, configuration, and graph extraction
 
 **Look here** for facts and technical details.
 
@@ -103,6 +104,7 @@ This documentation follows the [Diátaxis framework](https://diataxis.fr/) for s
 
 ### Operational Guides
 - [Operations Manual](operations/OPERATIONS.md) - Day-to-day operations
+- [Logging & Observability](operations/LOGGING.md) - Service logging, log access, and analysis
 - [Current Status](operations/STATUS.md) - System status and health
 - [Monitoring & Alerting](operations/monitoring.md) - Observability setup
 - [Backup & Recovery](operations/backup-recovery.md) - DR procedures

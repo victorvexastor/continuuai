@@ -80,16 +80,15 @@ services:
     build:
       context: .
       dockerfile: services/inference/Dockerfile
+    network_mode: host
     environment:
       RESPONSE_SCHEMA_PATH: /app/schemas/response-contract.v1.json
-      OLLAMA_HOST: ${OLLAMA_HOST:-http://ollama:11434}
-      LLM_MODEL: ${LLM_MODEL:-mistral:7b}
+      LLAMA_SERVER_URL: ${LLAMA_SERVER_URL:-http://127.0.0.1:8084}
       LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.3}
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-1024}
+      USE_STUB: ${USE_STUB:-false}
     volumes:
       - ./schemas:/app/schemas:ro
-    ports:
-      - "8082:8080"
     restart: ${RESTART_POLICY:-unless-stopped}
 
   api:
@@ -99,10 +98,12 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgres://continuuai:continuuai@postgres:5432/continuuai}
       RETRIEVAL_URL: ${RETRIEVAL_SERVICE_URL:-http://retrieval:8080}
-      INFERENCE_URL: ${INFERENCE_URL:-http://inference:8080}
+      INFERENCE_URL: ${INFERENCE_URL:-http://host.docker.internal:8082}
       RESPONSE_SCHEMA_PATH: /app/schemas/response-contract.v1.json
       ADMIN_TOKEN: ${ADMIN_TOKEN:-admin_secret}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./schemas:/app/schemas:ro
     depends_on:
@@ -176,6 +177,7 @@ services:
       dockerfile: Dockerfile
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:${API_PORT:-8080}
+      SERVER_API_URL: http://api:8080
     ports:
       - "${USER_APP_PORT:-3000}:3000"
     depends_on:

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Activity, Database, Server, Zap, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { AdminNav } from '@/components/AdminNav'
 
 interface HealthStatus {
   postgres: boolean
@@ -58,22 +59,9 @@ export default function AdminDashboard() {
   }, [])
 
   return (
-    <div className="min-h-screen p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
-            <p className="text-gray-600">ContinuuAI System Management</p>
-          </div>
-          <a
-            href="/dev"
-            className="bg-gradient-brand text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:shadow-glow-lg transition-all hover:scale-105"
-          >
-            <Activity className="w-5 h-5" />
-            Dev Controller
-          </a>
-        </div>
+    <div className="min-h-screen animated-gradient">
+      <AdminNav />
+      <div className="max-w-7xl mx-auto px-8 pb-8">
 
         {/* System Health Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">

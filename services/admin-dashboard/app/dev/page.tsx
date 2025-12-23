@@ -14,6 +14,7 @@ import {
     CheckCircle2,
     AlertCircle
 } from 'lucide-react'
+import { AdminNav } from '@/components/AdminNav'
 
 export default function DevController() {
     const [activeTab, setActiveTab] = useState('api-test')
@@ -74,8 +75,9 @@ export default function DevController() {
     }
 
     return (
-        <div className="min-h-screen animated-gradient p-8">
-            <div className="max-w-7xl mx-auto">
+        <div className="min-h-screen animated-gradient">
+            <AdminNav />
+            <div className="max-w-7xl mx-auto px-8 pb-8">
                 {/* Header */}
                 <div className="mb-8 animate-fade-in">
                     <h1 className="text-4xl font-display font-bold gradient-text mb-2">Developer Controller</h1>
