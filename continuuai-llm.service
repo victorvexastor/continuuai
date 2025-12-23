@@ -1,0 +1,24 @@
+[Unit]
+Description=ContinuuAI LLM Server (llama.cpp with Gemma 3 27B)
+After=network.target
+
+[Service]
+Type=simple
+User=adminator
+WorkingDirectory=/home/adminator/projects/ContinuuAI
+ExecStart=/home/adminator/projects/ContinuuAI/scripts/start_llm.sh
+Restart=on-failure
+RestartSec=10
+Environment="LD_LIBRARY_PATH=/home/adminator/llama.cpp/build/bin"
+
+# Resource limits
+LimitNOFILE=65536
+LimitMEMLOCK=infinity
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=continuuai-llm
+
+[Install]
+WantedBy=multi-user.target
