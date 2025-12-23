@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: neuais-colab-quota
+  namespace: neuais-colab
+spec:
+  hard:
+    requests.cpu: "100"
+    requests.memory: "500Gi"
+    requests.nvidia.com/gpu: "8"
+    limits.cpu: "200"
+    limits.memory: "1Ti"
+    limits.nvidia.com/gpu: "8"
+    persistentvolumeclaims: "50"
+    services.loadbalancers: "2"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: neuais-colab-limits
+  namespace: neuais-colab
+spec:
+  limits:
+  - max:
+      cpu: "16"
+      memory: "32Gi"
+      nvidia.com/gpu: "2"
+    min:
+      cpu: "100m"
+      memory: "128Mi"
+    default:
+      cpu: "1"
+      memory: "1Gi"
+    defaultRequest:
+      cpu: "500m"
+      memory: "512Mi"
+    type: Container
+  - max:
+      cpu: "32"
+      memory: "64Gi"
+      nvidia.com/gpu: "4"
+    min:
+      cpu: "1"
+      memory: "1Gi"
+    type: Pod
