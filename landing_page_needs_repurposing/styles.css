@@ -143,6 +143,41 @@ main { max-width: 1200px; margin: 0 auto; padding: 48px 24px 0; }
 .pill.warning { background: var(--warning); }
 .pill.alert { background: var(--alert); color: #fff; }
 .pill.info { background: var(--info); color: #06202c; }
+.pill.tiny { padding: 6px 10px; font-size: 11px; color: #0b1021; }
+
+.mini-list { display: grid; gap: 10px; margin-top: 12px; }
+.mini-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+}
+.mini-title { margin: 0; font-weight: 600; }
+.mini-sub { margin: 4px 0 0; font-size: 13px; }
+
+.muted { color: var(--muted); }
+
+.decision-preview {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.03);
+}
+.preview-header { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
+.preview-header .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--brand1); display: inline-block; }
+.preview-title { margin: 0; font-weight: 600; }
+.preview-sub { margin: 2px 0 0; font-size: 13px; }
+.preview-body { margin: 12px 0; }
+.preview-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.ask-preview { margin-top: 12px; border: 1px solid var(--border); border-radius: 14px; padding: 12px; background: rgba(255,255,255,0.03); }
+.ask-preview .prompt { font-weight: 600; margin-bottom: 8px; }
+.ask-preview .answer { padding: 10px; border-radius: 10px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); }
+.ask-preview .evidence { margin-top: 6px; font-size: 12px; }
 .card-title { margin: 0; font-weight: 600; }
 .card-sub { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
 .metric-label { margin: 0; color: var(--muted); font-size: 12px; }
@@ -171,17 +206,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 48px 24px 0; }
   padding: 18px;
   box-shadow: var(--shadow);
 }
-.highlight .mock-block {
-  height: 140px;
-  margin-top: 12px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, rgba(92,124,255,0.25), rgba(14,20,40,0.9));
-  border: 1px dashed var(--border);
-  color: var(--muted);
-  display: grid;
-  place-items: center;
-  font-size: 13px;
-}
+.highlight .mock-block { display: none; }
 .steps .step { position: relative; padding-top: 10px; }
 .step-num {
   position: absolute;
