@@ -1,40 +1,15 @@
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-pgdata/
-.env
-.venv
-env/
+node_modules/
 venv/
-*.log
-.DS_Store
-*.swp
-*.swo
-*~
-.idea/
-.vscode/
-*.iml
-
-# Environment and secrets
 .env
 .env.*
 !.env.example
-*.bak
-
-# Deployment artifacts
-backups/
-*.sql
-
-# Docker volumes
-pgdata/
-ollama_models/
-
-# Node/Frontend (for Phase 2-4)
-node_modules/
-.next/
+__pycache__/
+*.pyc
 dist/
 build/
-.expo/
-.turbo/
+.DS_Store
+*.log
+.cache/
+logs/
+*.sqlite
+*.db
